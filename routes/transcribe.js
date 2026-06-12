@@ -32,7 +32,7 @@ router.post('/lyrics', auth, tLimiter, upload.single('audio'), async (req, res) 
 
         const form = new FormData();
         form.append('file', req.file.buffer, { filename: req.file.originalname || 'audio.mp3', contentType: req.file.mimetype });
-        form.append('model', 'whisper-1');
+        form.append('model', 'gpt-4o-transcribe');
         form.append('prompt', 'የሚከተለው የአማርኛ መዝሙር ግጥም ነው፦'); // bias to Amharic Fidel (API rejects language=am)
         // language auto-detect (Amharic, etc.) - Whisper detects automatically
 
