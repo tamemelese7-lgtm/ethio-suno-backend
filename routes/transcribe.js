@@ -5,6 +5,7 @@ const axios = require('axios');
 const multer = require('multer');
 const FormData = require('form-data');
 const { auth } = require('../middleware/authMiddleware');
+const User = require('../models/User');
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -22,6 +23,13 @@ router.post('/lyrics', auth, tLimiter, upload.single('audio'), async (req, res) 
         if (!req.file) return res.status(400).json({ msg: 'የድምጽ ፋይል ያስፈልጋል!' });
         if (!process.env.OPENAI_API_KEY) return res.status(500).json({ msg: 'OpenAI አልተሰናዳም!' });
 
+        // Credit check (admin unlimited)
+        const user = await User.findById(req.userId);
+        if (!user) return res.status(404).json({ msg: 'ተጠቃሚ አልተገኘም!' });
+        if (user.role !== 'admin' && user.credits < 1) {
+            return res.status(403).json({ msg: 'Credit በቂ አይደለም! እባክዎ ይሙሉ።' });
+        }
+
         const form = new FormData();
         form.append('file', req.file.buffer, { filename: req.file.originalname || 'audio.mp3', contentType: req.file.mimetype });
         form.append('model', 'whisper-1');
@@ -35,7 +43,14 @@ router.post('/lyrics', auth, tLimiter, upload.single('audio'), async (req, res) 
         });
 
         const lyrics = wRes.data?.text || '';
-        res.json({ msg: 'ግጥም ተወጣ!', lyrics });
+
+        // Credit ቀነስ (admin unlimited)
+        if (user.role !== 'admin') {
+            user.credits -= 1;
+            await user.save();
+        }
+
+        res.json({ msg: 'ግጥም ተወጣ!', lyrics, remainingCredits: user.credits });
     } catch (err) {
         console.error('Transcribe Error:', err.message);
         if (err.message && err.message.includes('የድምጽ')) return res.status(400).json({ msg: err.message });
