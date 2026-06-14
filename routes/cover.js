@@ -105,7 +105,14 @@ router.post('/cover', auth, coverLimiter, upload.single('audio'), async (req, re
     console.error('Cover Error:', err.message);
     if (err.message && err.message.includes('የድምጽ')) return res.status(400).json({ msg: err.message });
     if (err.code === 'ECONNABORTED') return res.status(504).json({ msg: 'ጥሪው ጊዜ አልፎበታል!' });
-    if (err.response) { console.error('API:', JSON.stringify(err.response.data)); return res.status(err.response.status || 500).json({ msg: 'Suno API ስህተት!', detail: err.response.data }); }
+    if (err.response) {
+      console.error('API:', JSON.stringify(err.response.data));
+      const det = ((err.response.data && (err.response.data.detail || err.response.data.message)) || '').toString().toLowerCase();
+      if (det.includes('existing recording') || det.includes('catalog') || det.includes('copyright')) {
+        return res.status(400).json({ msg: 'ይህ ድምጽ copyright ያለው የታወቀ ዘፈን ነው። እባክዎ የራስዎን original ድምጽ ይጠቀሙ።' });
+      }
+      return res.status(err.response.status || 500).json({ msg: 'Suno API ስህተት!', detail: err.response.data });
+    }
     res.status(500).json({ msg: 'ስህተት ተፈጥሯል!' });
   }
 });
