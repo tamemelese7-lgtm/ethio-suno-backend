@@ -1,4 +1,3 @@
-cat > routes/cover.js << 'ENDOFFILE'
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
@@ -15,6 +14,7 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// memory storage (file → buffer), max 20MB, audio only
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 20 * 1024 * 1024 },
@@ -26,10 +26,11 @@ const upload = multer({
 
 const coverLimiter = rateLimit({ windowMs: 60*1000, max: 2, message: { msg: 'ቀስ ይበሉ! በደቂቃ 2 ጊዜ ብቻ።' } });
 
+// Cloudinary upload helper
 function uploadToCloudinary(buffer) {
     return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-            { resource_type: 'video', folder: 'ethiosuno_uploads' },
+            { resource_type: 'video', folder: 'ethiosuno_uploads' }, // 'video' handles audio too
             (err, result) => err ? reject(err) : resolve(result)
         );
         stream.end(buffer);
@@ -46,11 +47,13 @@ router.post('/cover', auth, coverLimiter, upload.single('audio'), async (req, re
         if (!user) return res.status(404).json({ msg: 'ተጠቃሚ አልተገኘም!' });
         if (user.credits < 1) return res.status(400).json({ msg: 'በቂ ክሬዲት የለዎትም!' });
 
+        // Step 1: Upload to Cloudinary → get URL
         console.log('Uploading to Cloudinary...');
         const cloud = await uploadToCloudinary(req.file.buffer);
         const audioUrl = cloud.secure_url;
         console.log('Cloudinary URL:', audioUrl);
 
+        // Step 2: Send to aimusicapi upload-cover
         const coverRes = await axios.post(process.env.SUNO_BASE_URL + '/api/v1/sonic/upload-cover',
             { url: audioUrl, mv: 'sonic-v4-5', custom_mode: true, prompt: lyrics || '[Verse]', title: title || 'Cover', tags: style },
             { headers: { 'Authorization': 'Bearer ' + process.env.SUNO_API_KEY, 'Content-Type': 'application/json' }, timeout: 120000 });
@@ -58,6 +61,7 @@ router.post('/cover', auth, coverLimiter, upload.single('audio'), async (req, re
         const taskId = coverRes.data?.task_id;
         if (!taskId) return res.status(500).json({ msg: 'Task ID አልተገኘም!', detail: coverRes.data });
 
+        // Step 3: Poll
         let songs = null;
         for (let i = 0; i < 24; i++) {
             await new Promise(r => setTimeout(r, 15000));
@@ -85,15 +89,7 @@ router.post('/cover', auth, coverLimiter, upload.single('audio'), async (req, re
         console.error('Cover Error:', err.message);
         if (err.message && err.message.includes('የድምጽ')) return res.status(400).json({ msg: err.message });
         if (err.code === 'ECONNABORTED') return res.status(504).json({ msg: 'ጥሪው ጊዜ አልፎበታል!' });
-        if (err.response) {
-            const data = err.response.data || {};
-            const upErr = (data && data.steps && data.steps.upload && data.steps.upload.error) || data.detail || data.message || '';
-            console.error('API:', JSON.stringify(data));
-            if (data.failed_step === 'upload' || /catalog|existing recording|HTTP 400/i.test(upErr)) {
-                return res.status(422).json({ msg: 'ይህ ድምጽ የታወቀ/የቅጂመብት ሙዚቃ ሊሆን ይችላል። እባክዎ የራስዎን ኦርጂናል ድምጽ ይሞክሩ።' });
-            }
-            return res.status(err.response.status || 500).json({ msg: 'Suno API ስህተት!', detail: data });
-        }
+        if (err.response) { console.error('API:', JSON.stringify(err.response.data)); return res.status(err.response.status || 500).json({ msg: 'Suno API ስህተት!', detail: err.response.data }); }
         res.status(500).json({ msg: 'ስህተት ተፈጥሯል!' });
     }
 });
