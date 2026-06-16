@@ -31,7 +31,7 @@ async function masterAudio(audioUrl) {
     const resp = await axios.get(audioUrl, { responseType: 'arraybuffer', timeout: 60000 });
     _fs.writeFileSync(inPath, Buffer.from(resp.data));
     await new Promise((resolve, reject) => {
-      execFile(ffmpegPath, ['-y','-nostats','-loglevel','error','-i',inPath,'-af','highpass=f=22,equalizer=f=100:width_type=h:g=5,equalizer=f=3500:width_type=o:width=1.4:g=4,equalizer=f=6000:width_type=o:width=1.6:g=5,loudnorm=I=-14:TP=-1.5:LRA=11','-b:a','192k',outPath], { timeout: 300000, maxBuffer: 1024 * 1024 * 100 }, (err) => err ? reject(err) : resolve());
+      execFile(ffmpegPath, ['-y','-nostats','-loglevel','error','-i',inPath,'-af','highpass=f=25,equalizer=f=60:width_type=h:g=9,equalizer=f=160:width_type=o:width=1.3:g=6,equalizer=f=2500:width_type=o:width=1.5:g=1,equalizer=f=7000:width_type=h:g=-6,loudnorm=I=-14:TP=-1.5:LRA=11','-b:a','192k',outPath], { timeout: 300000, maxBuffer: 1024 * 1024 * 100 }, (err) => err ? reject(err) : resolve());
     });
     const buf = _fs.readFileSync(outPath);
     const up = await uploadMastered(buf);
