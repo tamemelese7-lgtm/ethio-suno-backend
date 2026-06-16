@@ -6,6 +6,48 @@ const User = require('../models/User');
 const Song = require('../models/Song');
 const { auth } = require('../middleware/authMiddleware');
 
+// ===== AUTO MASTERING =====
+const ffmpegPath = require('ffmpeg-static');
+const { execFile } = require('child_process');
+const _fs = require('fs');
+const cloudinary = require('cloudinary').v2;
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+function uploadMastered(buffer) {
+  return new Promise((resolve, reject) => {
+    const st = cloudinary.uploader.upload_stream({ resource_type: 'video', folder: 'ethiosuno_mastered' }, (err, result) => err ? reject(err) : resolve(result));
+    st.end(buffer);
+  });
+}
+async function masterAudio(audioUrl) {
+  if (!audioUrl) return null;
+  const ts = Date.now() + '_' + Math.floor(Math.random()*9999);
+  const inPath = '/tmp/m_in_' + ts + '.mp3';
+  const outPath = '/tmp/m_out_' + ts + '.mp3';
+  try {
+    const resp = await axios.get(audioUrl, { responseType: 'arraybuffer', timeout: 60000 });
+    _fs.writeFileSync(inPath, Buffer.from(resp.data));
+    await new Promise((resolve, reject) => {
+      execFile(ffmpegPath, ['-y','-i',inPath,'-af','highpass=f=30,equalizer=f=3000:width_type=o:width=1.5:g=2,equalizer=f=8000:width_type=h:g=2,loudnorm=I=-14:TP=-1.5:LRA=11','-b:a','192k',outPath], { timeout: 60000 }, (err) => err ? reject(err) : resolve());
+    });
+    const buf = _fs.readFileSync(outPath);
+    const up = await uploadMastered(buf);
+    console.log('Mastered OK:', up && up.secure_url);
+    return (up && up.secure_url) || null;
+  } catch (e) {
+    console.error('Master error:', e.message);
+    return null;
+  } finally {
+    try { if (_fs.existsSync(inPath)) _fs.unlinkSync(inPath); } catch(e){}
+    try { if (_fs.existsSync(outPath)) _fs.unlinkSync(outPath); } catch(e){}
+  }
+}
+// ===== end mastering =====
+
+
 // 🛡️ Generate rate limit — በደቂቃ 3 ጥሪ ብቻ
 const generateLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -121,6 +163,10 @@ router.post('/generate', auth, generateLimiter, async (req, res) => {
         }
 
         const first = clips[0] || {};
+        try {
+          const mastered = await masterAudio(first.audio_url || first.audioUrl);
+          if (mastered) { first.audio_url = mastered; first.audioUrl = mastered; }
+        } catch (e) { console.error('Mastering skipped:', e.message); }
         const song = new Song({
             user: user._id,
             title: title || first.title || 'Untitled',
