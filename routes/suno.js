@@ -245,5 +245,19 @@ router.post('/songs/:id/toggle-public', auth, async (req, res) => {
     } catch (e) { res.status(500).json({ msg: 'server error' }); }
 });
 
+// 🎚️ POST /master — manual mastering
+router.post('/master', auth, async (req, res) => {
+  try {
+    const { audioUrl } = req.body;
+    if (!audioUrl) return res.status(400).json({ msg: 'audioUrl ያስፈልጋል!' });
+    const mastered = await masterAudio(audioUrl);
+    if (!mastered) return res.status(500).json({ msg: 'Mastering አልተሳካም!' });
+    res.json({ msg: 'ድምጹ ተስተካክሏል!', audioUrl: mastered });
+  } catch (e) {
+    console.error('Master endpoint:', e.message);
+    res.status(500).json({ msg: 'ስህተት!' });
+  }
+});
+
 module.exports = router;
 
