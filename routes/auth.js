@@ -5,6 +5,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { auth } = require('../middleware/authMiddleware');
+const { OAuth2Client } = require('google-auth-library');
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '208746106474-0rkea5puvl2tlu3et5h0voi2bvf1ld9l.apps.googleusercontent.com';
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 const authLimiter = rateLimit({ windowMs: 15*60*1000, max: 10, message: { msg: 'ብዙ ሙከራ! ከ15 ደቂቃ በኋላ ይሞክሩ።' } });
 function makeToken(user) { return jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' }); }
 router.post('/register', authLimiter, async (req, res) => {
@@ -76,6 +79,33 @@ router.post('/reset', authLimiter, async (req, res) => {
         await user.save();
         res.json({ msg: 'የይለፍ ቃل ተቀይሯл! ይግቡ።' });
     } catch (e) { res.status(500).json({ msg: 'server error' }); }
+});
+
+
+router.post('/google', authLimiter, async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) return res.status(400).json({ msg: 'Google token የለም!' });
+    const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+    const payload = ticket.getPayload();
+    const googleId = payload.sub;
+    const email = (payload.email || '').toLowerCase();
+    const name = (payload.name || 'Google User').slice(0, 60);
+    if (!email) return res.status(400).json({ msg: 'Email አልተገኘም!' });
+    let user = await User.findOne({ $or: [{ googleId: googleId }, { email: email }] });
+    if (!user) {
+      user = new User({ fullName: name, email: email, googleId: googleId });
+      await user.save();
+    } else if (!user.googleId) {
+      user.googleId = googleId;
+      if (!user.email) user.email = email;
+      await user.save();
+    }
+    res.json({ token: makeToken(user), user: user.toSafeJSON() });
+  } catch (err) {
+    console.error('Google:', err.message);
+    res.status(401).json({ msg: 'Google መግባት አልተሳካም!' });
+  }
 });
 
 module.exports = router;
