@@ -102,7 +102,8 @@ router.post('/generate', auth, generateLimiter, async (req, res) => {
             mv,
             title: title || 'Untitled',
             tags: style,
-            prompt: lyrics
+            prompt: lyrics,
+      make_instrumental: (vocalGender === 'instrumental')
         };
         // add vocal_gender only when chosen AND model supports it
         if ((vocalGender === 'm' || vocalGender === 'f') && GENDER_MODELS.includes(mv)) {
