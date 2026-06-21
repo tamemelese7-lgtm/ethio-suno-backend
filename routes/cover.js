@@ -95,7 +95,7 @@ router.post('/cover', auth, coverLimiter, upload.single('audio'), async (req, re
     if (!songs) return res.status(504).json({ msg: 'ጊዜ አልፎበታል!' });
 
     const first = songs[0] || {};
-    user.credits -= 1;
+    if (user.role !== 'admin') user.credits -= 1;
     await user.save();
     const song = new Song({ user: user._id, title: title || 'Cover', style, lyrics: lyrics || '',
       audioUrl: first.audio_url || '', imageUrl: first.image_url || '', duration: first.duration || 0, status: 'complete' });
