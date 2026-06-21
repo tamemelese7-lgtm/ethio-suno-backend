@@ -73,7 +73,7 @@ router.post('/cover', auth, coverLimiter, upload.single('audio'), async (req, re
 
     console.log('Creating cover...');
     const coverRes = await axios.post(SUNO + '/api/v1/sonic/create',
-      { task_type: 'cover_upload_music', continue_clip_id: clipId, custom_mode: true, mv: 'sonic-v4-5', prompt: lyrics || '[Verse]', title: title || 'Cover', tags: style, audio_weight: (audio_weight !== undefined && audio_weight !== '' ? parseFloat(audio_weight) : 0.65) },
+      { task_type: 'cover_upload_music', continue_clip_id: clipId, custom_mode: true, mv: 'sonic-v5-5', prompt: lyrics || '[Verse]', title: title || 'Cover', tags: style, audio_weight: (audio_weight !== undefined && audio_weight !== '' ? parseFloat(audio_weight) : 0.65) },
       { headers: HEAD, timeout: 120000 });
     console.log('Create response:', JSON.stringify(coverRes.data));
     const cd = coverRes.data && (coverRes.data.data || coverRes.data);
