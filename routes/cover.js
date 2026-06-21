@@ -44,7 +44,7 @@ router.post('/cover', auth, coverLimiter, upload.single('audio'), async (req, re
     if (!style) return res.status(400).json({ msg: 'ስልት ያስፈልጋል!' });
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ msg: 'ተጠቃሚ አልተገኘም!' });
-    if (user.credits < 1) return res.status(400).json({ msg: 'በቂ ክሬዲት የለዎትም!' });
+    if (user.role !== 'admin' && user.credits < 1) return res.status(400).json({ msg: 'በቂ ክሬዲት የለዎትም!' });
 
     console.log('Uploading to Cloudinary...');
     const cloud = await uploadToCloudinary(req.file.buffer);
