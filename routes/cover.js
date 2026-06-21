@@ -39,7 +39,7 @@ function uploadToCloudinary(buffer) {
 
 router.post('/cover', auth, coverLimiter, upload.single('audio'), async (req, res) => {
   try {
-    const { style, title, lyrics, audio_weight } = req.body;
+    const { style, title, lyrics, audio_weight, model, styleWeight, weirdness } = req.body;
     if (!req.file) return res.status(400).json({ msg: 'የድምጽ ፋይል ያስፈልጋል!' });
     if (!style) return res.status(400).json({ msg: 'ስልት ያስፈልጋል!' });
     const user = await User.findById(req.userId);
@@ -73,7 +73,7 @@ router.post('/cover', auth, coverLimiter, upload.single('audio'), async (req, re
 
     console.log('Creating cover...');
     const coverRes = await axios.post(SUNO + '/api/v1/sonic/create',
-      { task_type: 'cover_upload_music', continue_clip_id: clipId, custom_mode: true, mv: 'sonic-v5-5', prompt: lyrics || '[Verse]', title: title || 'Cover', tags: style, audio_weight: (audio_weight !== undefined && audio_weight !== '' ? parseFloat(audio_weight) : 0.65) },
+      { task_type: 'cover_upload_music', continue_clip_id: clipId, custom_mode: true, mv: (model || 'sonic-v5-5'), prompt: lyrics || '[Verse]', title: title || 'Cover', tags: style, audio_weight: (audio_weight !== undefined && audio_weight !== '' ? parseFloat(audio_weight) : 0.65), style_weight: (parseFloat(styleWeight) || 0.7), weirdness_constraint: (parseFloat(weirdness) || 0.3) },
       { headers: HEAD, timeout: 120000 });
     console.log('Create response:', JSON.stringify(coverRes.data));
     const cd = coverRes.data && (coverRes.data.data || coverRes.data);
